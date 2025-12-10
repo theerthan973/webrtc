@@ -1,8 +1,3 @@
-// =======================
-// Signaling Server Config
-// =======================
-
-// Directly use your Render URL (no ports, no HTTP)
 const SIGNALING_URL = "https://webrtc-syec.onrender.com";
 
 const socket = io(SIGNALING_URL, {
@@ -13,343 +8,152 @@ const socket = io(SIGNALING_URL, {
   randomizationFactor: 0.5
 });
 
-// ===============
-// DOM References
-// ===============
-const videoFront = document.getElementById('remoteVideoFront');
-const videoBack = document.getElementById('remoteVideoBack');
-const statusDiv = document.getElementById('status');
-const notificationsDiv = document.getElementById('notifications');
-const callLogsDiv = document.getElementById('callLogs');
-const smsDiv = document.getElementById('smsMessages');
-const debugLog = document.getElementById('debugLog');
-const retryButton = document.getElementById('retryButton');
+const remoteVideo = document.getElementById("remoteVideo");
+const statusDiv = document.getElementById("status");
+const debugLog = document.getElementById("debugLog");
+const retryButton = document.getElementById("retryButton");
 
 let peer;
 let myId;
 let androidClientId;
-let map;
-let marker;
 let audioTrack = null;
-let frontVideoTrack = null;
-let backVideoTrack = null;
+let videoTrack = null;
 
-// =============================
-// WebRTC ICE (STUN + TURN) cfg
-// =============================
 const config = {
   iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: "stun:stun.l.google.com:19302" },
     {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
+      urls: "turn:openrelay.metered.ca:443",
+      username: "openrelayproject",
+      credential: "openrelayproject"
     }
   ]
 };
 
-// ==================
-// Helper UI Functions
-// ==================
-function updateStatus(message) {
-  console.log(message);
-  statusDiv.textContent = message;
-  logDebug(message);
-  retryButton.style.display = message.includes('Failed') ? 'block' : 'none';
+function updateStatus(msg) {
+  console.log(msg);
+  statusDiv.textContent = msg;
+  logDebug(msg);
 }
 
 function logDebug(message) {
-  const logEntry = document.createElement('div');
-  logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-  debugLog.prepend(logEntry);
+  const div = document.createElement("div");
+  div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+  debugLog.prepend(div);
   while (debugLog.children.length > 50) {
     debugLog.removeChild(debugLog.lastChild);
   }
 }
 
-function addNotification(notification) {
-  const notificationEl = document.createElement('div');
-  notificationEl.className = 'notification';
-  notificationEl.innerHTML = `
-    <p><strong>App:</strong> ${notification.appName}</p>
-    <p><strong>Title:</strong> ${notification.title}</p>
-    <p><strong>Text:</strong> ${notification.text}</p>
-    <p class="timestamp">${notification.timestamp}</p>
-  `;
-  notificationsDiv.prepend(notificationEl);
-  while (notificationsDiv.children.length > 10) {
-    notificationsDiv.removeChild(notificationsDiv.lastChild);
-  }
-  logDebug(`Received notification from ${notification.appName}`);
-}
-
-function addCallLog(call) {
-  const callLogEl = document.createElement('div');
-  callLogEl.className = 'call-log';
-  callLogEl.innerHTML = `
-    <p><strong>Number:</strong> ${call.number}</p>
-    <p><strong>Type:</strong> ${call.type}</p>
-    <p><strong>Date:</strong> ${call.date}</p>
-    <p><strong>Duration:</strong> ${call.duration} seconds</p>
-  `;
-  callLogsDiv.prepend(callLogEl);
-  while (callLogsDiv.children.length > 10) {
-    callLogsDiv.removeChild(callLogsDiv.lastChild);
-  }
-  logDebug(`Received call log: ${call.number}`);
-}
-
-function addSmsMessage(sms) {
-  const smsEl = document.createElement('div');
-  smsEl.className = 'sms-message';
-  smsEl.innerHTML = `
-    <p><strong>Address:</strong> ${sms.address}</p>
-    <p><strong>Type:</strong> ${sms.type}</p>
-    <p><strong>Date:</strong> ${sms.date}</p>
-    <p><strong>Body:</strong> ${sms.body}</p>
-  `;
-  smsDiv.prepend(smsEl);
-  while (smsDiv.children.length > 50) {
-    smsDiv.removeChild(smsDiv.lastChild);
-  }
-  logDebug(`Received SMS from ${sms.address}`);
-}
-
-// ============
-// Map Handling
-// ============
-function initMap() {
-  map = L.map('mapContainer').setView([0, 0], 13);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  }).addTo(map);
-}
-
-function updateMap(latitude, longitude) {
-  if (!map) {
-    initMap();
-  }
-  if (marker) {
-    marker.setLatLng([latitude, longitude]);
-  } else {
-    marker = L.marker([latitude, longitude]).addTo(map);
-    marker.bindPopup('Device Location').openPopup();
-  }
-  map.setView([latitude, longitude], 13);
-  logDebug(`Updated map to lat=${latitude}, lng=${longitude}`);
-}
-
-// =====================
-// Video Stream Handling
-// =====================
-function updateStreams() {
-  if (frontVideoTrack) {
-    const frontStream = new MediaStream([frontVideoTrack]);
-    if (audioTrack) frontStream.addTrack(audioTrack);
-    videoFront.srcObject = frontStream;
-    videoFront.onloadedmetadata = () => {
-      videoFront.play().catch(err => {
-        console.error('Autoplay blocked for front:', err);
-        updateStatus('Tap the front video to start playback');
-        videoFront.setAttribute('controls', 'true');
-      });
-    };
-  }
-
-  if (backVideoTrack) {
-    const backStream = new MediaStream([backVideoTrack]);
-    if (audioTrack) backStream.addTrack(audioTrack);
-    videoBack.srcObject = backStream;
-    videoBack.onloadedmetadata = () => {
-      videoBack.play().catch(err => {
-        console.error('Autoplay blocked for back:', err);
-        updateStatus('Tap the back video to start playback');
-        videoBack.setAttribute('controls', 'true');
-      });
-    };
-  }
-
-  updateStatus('Receiving remote streams');
-}
-
-// ==================
-// Socket Reconnect
-// ==================
 function reconnectSocket() {
-  updateStatus('Attempting to reconnect to server...');
+  updateStatus("Reconnecting to server...");
   socket.connect();
 }
 
-// ==================
-// Socket.IO Handlers
-// ==================
-socket.on('connect', () => {
-  updateStatus('Connected to signaling server');
+// Socket events
+socket.on("connect", () => {
+  updateStatus("Connected to signaling server");
 });
 
-socket.on('connect_error', (error) => {
-  const message = `Socket.IO connection error: ${error.message} (${error.type})`;
-  console.error(message);
-  updateStatus('Failed to connect to server. Retrying...');
+socket.on("connect_error", (error) => {
+  updateStatus(`Socket error: ${error.message}`);
 });
 
-socket.on('id', id => {
+socket.on("id", (id) => {
   myId = id;
-  logDebug(`Received socket ID: ${myId}`);
-  socket.emit('identify', 'web');
-  socket.emit('web-client-ready', myId);
-  updateStatus('Announced readiness to receive stream');
+  logDebug(`My socket id: ${myId}`);
+  socket.emit("identify", "web");
+  socket.emit("web-client-ready", myId);
+  updateStatus("Waiting for Android device...");
 });
 
-socket.on('android-client-ready', id => {
-  if (androidClientId !== id) {
-    androidClientId = id;
-    logDebug(`Android client ready: ${id}`);
-    updateStatus('Android client connected');
-  }
+socket.on("android-client-ready", (id) => {
+  androidClientId = id;
+  logDebug(`Android client ready: ${id}`);
+  updateStatus("Android connected, waiting for video...");
 });
 
-socket.on('notification', data => {
-  logDebug(`Received notification from ${data.from}`);
-  if (data.notification) {
-    addNotification(data.notification);
-  }
-});
-
-socket.on('call_log', data => {
-  logDebug(`Received call log from ${data.from}`);
-  if (data.call_logs) {
-    data.call_logs.forEach(call => addCallLog(call));
-  }
-});
-
-socket.on('sms', data => {
-  logDebug(`Received SMS messages from ${data.from}`);
-  if (data.sms_messages) {
-    data.sms_messages.forEach(sms => addSmsMessage(sms));
-  }
-});
-
-socket.on('location', data => {
-  logDebug(`Received location from ${data.from}: lat=${data.latitude}, lng=${data.longitude}`);
-  updateMap(data.latitude, data.longitude);
-});
-
-// =======================
-// WebRTC Signaling Handler
-// =======================
-socket.on('signal', async (data) => {
-  logDebug(`Received signal from ${data.from}: ${data.signal.type || 'candidate'}`);
+socket.on("signal", async (data) => {
   const { from, signal } = data;
+  logDebug(`Received signal: ${signal.type || "candidate"}`);
 
   if (!peer) {
-    logDebug('Creating new peer connection');
-    try {
-      peer = new RTCPeerConnection(config);
+    peer = new RTCPeerConnection(config);
 
-      // Expecting: front video, back video, and audio
-      peer.addTransceiver('video', { direction: 'recvonly' });
-      peer.addTransceiver('video', { direction: 'recvonly' });
-      peer.addTransceiver('audio', { direction: 'recvonly' });
+    peer.addTransceiver("video", { direction: "recvonly" });
+    peer.addTransceiver("audio", { direction: "recvonly" });
 
-      peer.ontrack = (event) => {
-        const track = event.track;
-        if (track.kind === 'audio') {
-          audioTrack = track;
-        } else if (track.kind === 'video' && track.id === 'front_camera') {
-          frontVideoTrack = track;
-        } else if (track.kind === 'video' && track.id === 'back_camera') {
-          backVideoTrack = track;
-        }
-        updateStreams();
-      };
+    peer.ontrack = (event) => {
+      const track = event.track;
+      if (track.kind === "audio") {
+        audioTrack = track;
+      } else if (track.kind === "video") {
+        videoTrack = track;
+      }
 
-      peer.onicecandidate = e => {
-        if (e.candidate) {
-          logDebug(`Sending ICE candidate: ${e.candidate.sdpMid}`);
-          socket.emit('signal', {
-            to: from,
-            from: myId,
-            signal: { candidate: e.candidate }
+      if (videoTrack) {
+        const stream = new MediaStream([videoTrack]);
+        if (audioTrack) stream.addTrack(audioTrack);
+        remoteVideo.srcObject = stream;
+        remoteVideo.onloadedmetadata = () => {
+          remoteVideo.play().catch((err) => {
+            logDebug("Autoplay blocked, tap video to play");
+            remoteVideo.setAttribute("controls", "true");
           });
-        }
-      };
+        };
+        updateStatus("Receiving video stream");
+      }
+    };
 
-      peer.oniceconnectionstatechange = () => {
-        logDebug(`ICE connection state: ${peer.iceConnectionState}`);
-        updateStatus(`ICE connection: ${peer.iceConnectionState}`);
-        if (peer.iceConnectionState === 'failed') {
-          updateStatus('Connection failed, please refresh or retry');
-        }
-      };
+    peer.onicecandidate = (e) => {
+      if (e.candidate) {
+        socket.emit("signal", {
+          to: from,
+          from: myId,
+          signal: { candidate: e.candidate }
+        });
+      }
+    };
 
-      peer.onsignalingstatechange = () => {
-        logDebug(`Signaling state: ${peer.signalingState}`);
-      };
-    } catch (err) {
-      console.error('Failed to create peer connection:', err);
-      updateStatus(`Peer connection error: ${err.message}`);
-    }
+    peer.oniceconnectionstatechange = () => {
+      logDebug(`ICE state: ${peer.iceConnectionState}`);
+    };
   }
 
   try {
-    if (signal.type === 'offer') {
-      logDebug(`Processing offer from Android, SDP: ${signal.sdp.substring(0, 50)}...`);
+    if (signal.type === "offer") {
       await peer.setRemoteDescription(new RTCSessionDescription(signal));
       const answer = await peer.createAnswer();
-      logDebug(`Created answer, SDP: ${answer.sdp.substring(0, 50)}...`);
       await peer.setLocalDescription(answer);
-      logDebug('Sending answer back to Android');
-      socket.emit('signal', {
+      socket.emit("signal", {
         to: from,
         from: myId,
-        signal: { type: 'answer', sdp: answer.sdp }
+        signal: { type: "answer", sdp: answer.sdp }
       });
+      logDebug("Sent answer to Android");
     } else if (signal.candidate) {
-      logDebug(`Adding ICE candidate: ${signal.candidate.candidate}`);
       await peer.addIceCandidate(new RTCIceCandidate(signal.candidate));
+      logDebug("ICE candidate added");
     }
   } catch (err) {
-    console.error('Error handling signal:', err);
-    updateStatus(`Error: ${err.message}`);
+    logDebug(`Error in signal handler: ${err.message}`);
   }
 });
 
-// ===================
-// Android Disconnect
-// ===================
-socket.on('android-client-disconnected', () => {
-  updateStatus('Android client disconnected');
+socket.on("android-client-disconnected", () => {
+  updateStatus("Android client disconnected");
   if (peer) {
     peer.close();
     peer = null;
-    videoFront.srcObject = null;
-    videoBack.srcObject = null;
-    document.body.style.backgroundColor = '#111827';
   }
-  notificationsDiv.innerHTML = '';
-  callLogsDiv.innerHTML = '';
-  smsDiv.innerHTML = '';
-  if (marker) {
-    marker.remove();
-    marker = null;
-  }
-  logDebug('Android client disconnected');
+  remoteVideo.srcObject = null;
 });
 
-socket.on('error', (error) => {
-  console.error('Socket.IO server error:', error);
+socket.on("error", (error) => {
   updateStatus(`Server error: ${error.message}`);
 });
 
-// ============
-// UI Listeners
-// ============
-retryButton.addEventListener('click', reconnectSocket);
+retryButton.addEventListener("click", reconnectSocket);
 
-// ============
-// Init
-// ============
-updateStatus('Connecting to server...');
-logDebug('Web client initializing...');
-initMap();
+updateStatus("Connecting to server...");
+logDebug("Web client initialized");
