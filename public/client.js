@@ -8,7 +8,7 @@ const socket = io(SIGNALING_URL, {
   randomizationFactor: 0.5
 });
 
-const remoteVideo = document.getElementById("remoteVideo");
+const remoteAudio = document.getElementById("remoteAudio");
 const statusDiv = document.getElementById("status");
 const debugLog = document.getElementById("debugLog");
 const retryButton = document.getElementById("retryButton");
@@ -16,8 +16,6 @@ const retryButton = document.getElementById("retryButton");
 let peer;
 let myId;
 let androidClientId;
-let audioTrack = null;
-let videoTrack = null;
 
 const config = {
   iceServers: [
@@ -29,6 +27,8 @@ const config = {
     }
   ]
 };
+
+/* ---------------- STATUS + LOG ---------------- */
 
 function updateStatus(msg) {
   console.log(msg);
@@ -50,7 +50,8 @@ function reconnectSocket() {
   socket.connect();
 }
 
-// Socket events
+/* ---------------- SOCKET EVENTS ---------------- */
+
 socket.on("connect", () => {
   updateStatus("Connected to signaling server");
 });
@@ -70,8 +71,10 @@ socket.on("id", (id) => {
 socket.on("android-client-ready", (id) => {
   androidClientId = id;
   logDebug(`Android client ready: ${id}`);
-  updateStatus("Android connected, waiting for video...");
+  updateStatus("Android connected, waiting for audio...");
 });
+
+/* ---------------- SIGNALING ---------------- */
 
 socket.on("signal", async (data) => {
   const { from, signal } = data;
@@ -80,29 +83,16 @@ socket.on("signal", async (data) => {
   if (!peer) {
     peer = new RTCPeerConnection(config);
 
-    peer.addTransceiver("video", { direction: "recvonly" });
+    // ✅ AUDIO ONLY
     peer.addTransceiver("audio", { direction: "recvonly" });
 
     peer.ontrack = (event) => {
-      const track = event.track;
-      if (track.kind === "audio") {
-        audioTrack = track;
-      } else if (track.kind === "video") {
-        videoTrack = track;
-      }
-
-      if (videoTrack) {
-        const stream = new MediaStream([videoTrack]);
-        if (audioTrack) stream.addTrack(audioTrack);
-        remoteVideo.srcObject = stream;
-        remoteVideo.onloadedmetadata = () => {
-          remoteVideo.play().catch((err) => {
-            logDebug("Autoplay blocked, tap video to play");
-            remoteVideo.setAttribute("controls", "true");
-          });
-        };
-        updateStatus("Receiving video stream");
-      }
+      const stream = new MediaStream([event.track]);
+      remoteAudio.srcObject = stream;
+      remoteAudio.play().catch(() => {
+        remoteAudio.controls = true;
+      });
+      updateStatus("Receiving audio stream");
     };
 
     peer.onicecandidate = (e) => {
@@ -125,20 +115,24 @@ socket.on("signal", async (data) => {
       await peer.setRemoteDescription(new RTCSessionDescription(signal));
       const answer = await peer.createAnswer();
       await peer.setLocalDescription(answer);
+
       socket.emit("signal", {
         to: from,
         from: myId,
         signal: { type: "answer", sdp: answer.sdp }
       });
-      logDebug("Sent answer to Android");
+
+      logDebug("Sent audio answer");
     } else if (signal.candidate) {
       await peer.addIceCandidate(new RTCIceCandidate(signal.candidate));
       logDebug("ICE candidate added");
     }
   } catch (err) {
-    logDebug(`Error in signal handler: ${err.message}`);
+    logDebug(`Signal error: ${err.message}`);
   }
 });
+
+/* ---------------- DISCONNECT ---------------- */
 
 socket.on("android-client-disconnected", () => {
   updateStatus("Android client disconnected");
@@ -146,7 +140,7 @@ socket.on("android-client-disconnected", () => {
     peer.close();
     peer = null;
   }
-  remoteVideo.srcObject = null;
+  remoteAudio.srcObject = null;
 });
 
 socket.on("error", (error) => {
@@ -156,4 +150,4 @@ socket.on("error", (error) => {
 retryButton.addEventListener("click", reconnectSocket);
 
 updateStatus("Connecting to server...");
-logDebug("Web client initialized");
+logDebug("Web audio client initialized");
