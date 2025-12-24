@@ -1,113 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Android Audio Stream</title>
+<meta charset="UTF-8">
+<title>Android Audio Stream</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: 'Courier New', monospace;
-      background: #0d0d0d;
-      color: #00ff00;
-      min-height: 100vh;
-    }
-
-    .header {
-      padding: 12px;
-      background: #111;
-      border-bottom: 2px solid #00ff00;
-      text-align: center;
-      position: sticky;
-      top: 0;
-    }
-
-    h1 {
-      font-size: 1.6rem;
-      text-shadow: 0 0 10px #00ff00;
-    }
-
-    #status {
-      margin-top: 8px;
-      padding: 8px;
-      border: 1px solid #00ff00;
-      display: inline-block;
-    }
-
-    .main {
-      padding: 24px;
-      max-width: 800px;
-      margin: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    .card {
-      background: #111;
-      border: 1px solid #00ff00;
-      padding: 16px;
-      border-radius: 14px;
-    }
-
-    audio {
-      width: 100%;
-      margin-top: 10px;
-    }
-
-    #debugLog {
-      height: 180px;
-      overflow-y: auto;
-      border: 1px solid #00ff00;
-      padding: 10px;
-      font-size: 0.85rem;
-    }
-
-    button {
-      margin-top: 10px;
-      padding: 8px 16px;
-      background: #00ff00;
-      color: black;
-      border-radius: 6px;
-      border: none;
-      cursor: pointer;
-    }
-  </style>
+<style>
+body {
+  background:#0d0d0d;
+  color:#00ff00;
+  font-family: monospace;
+  padding:20px;
+}
+.card {
+  border:1px solid #00ff00;
+  padding:15px;
+  margin-bottom:15px;
+}
+audio { width:100%; }
+#debugLog {
+  height:180px;
+  overflow:auto;
+  border:1px solid #00ff00;
+  padding:10px;
+}
+</style>
 </head>
 
 <body>
 
-  <!-- HEADER -->
-  <div class="header">
-    <h1>Android Audio Stream</h1>
-    <div id="status">Connecting…</div>
-  </div>
+<h1>Android Audio Stream</h1>
+<div id="status">Connecting…</div>
 
-  <!-- MAIN -->
-  <div class="main">
+<div class="card">
+  <h3>Live Audio</h3>
+  <audio id="remoteAudio" autoplay controls></audio>
+</div>
 
-    <!-- AUDIO -->
-    <div class="card">
-      <h2>Live Audio</h2>
-      <audio id="remoteAudio" autoplay controls></audio>
-    </div>
+<div class="card">
+  <h3>Debug</h3>
+  <div id="debugLog"></div>
+  <button onclick="location.reload()">Reconnect</button>
+</div>
 
-    <!-- DEBUG -->
-    <div class="card">
-      <h2>Debug Log</h2>
-      <div id="debugLog"></div>
-      <button id="retryButton">Reconnect</button>
-    </div>
-
-  </div>
-
-  <!-- Socket.IO -->
-  <script src="/socket.io/socket.io.js"></script>
-
-  <!-- Client logic -->
-  <script src="client.js"></script>
-
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="client.js"></script>
 </body>
 </html>
