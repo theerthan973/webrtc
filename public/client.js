@@ -1,53 +1,43 @@
 const SIGNALING_URL = "https://webrtc-syec.onrender.com";
-
-const socket = io(SIGNALING_URL, { reconnection: true });
-
-const remoteAudio = document.getElementById("remoteAudio");
-const statusDiv = document.getElementById("status");
-const debugLog = document.getElementById("debugLog");
+const socket = io(SIGNALING_URL);
 
 let peer;
 let myId;
+let androidId;
 
-const config = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    {
-      urls: "turn:openrelay.metered.ca:443",
-      username: "openrelayproject",
-      credential: "openrelayproject"
-    }
-  ]
+const remoteAudio = document.getElementById("remoteAudio");
+const status = document.getElementById("status");
+
+const rtcConfig = {
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
 };
 
-function log(msg) {
-  statusDiv.textContent = msg;
-  const d = document.createElement("div");
-  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-  debugLog.prepend(d);
-}
-
-socket.on("connect", () => log("Connected to server"));
+socket.on("connect", () => {
+  status.textContent = "Connected";
+});
 
 socket.on("id", id => {
   myId = id;
   socket.emit("identify", "web");
-  log("Waiting for Android…");
 });
 
 socket.on("android-client-ready", id => {
-  log("Android connected");
+  androidId = id;
+  status.textContent = "Android connected";
 });
+
+document.getElementById("startBtn").onclick = () => {
+  socket.emit("control", { to: androidId, action: "START_STREAM" });
+};
 
 socket.on("signal", async ({ from, signal }) => {
   if (!peer) {
-    peer = new RTCPeerConnection(config);
+    peer = new RTCPeerConnection(rtcConfig);
     peer.addTransceiver("audio", { direction: "recvonly" });
 
     peer.ontrack = e => {
       remoteAudio.srcObject = new MediaStream([e.track]);
-      remoteAudio.play().catch(()=>{});
-      log("Receiving audio");
+      status.textContent = "Receiving audio";
     };
 
     peer.onicecandidate = e => {
@@ -71,18 +61,7 @@ socket.on("signal", async ({ from, signal }) => {
       from: myId,
       signal: answer
     });
-
-    log("Answer sent");
-  }
-
-  if (signal.candidate) {
+  } else if (signal.candidate) {
     await peer.addIceCandidate(signal.candidate);
   }
-});
-
-socket.on("android-client-disconnected", () => {
-  log("Android disconnected");
-  if (peer) peer.close();
-  peer = null;
-  remoteAudio.srcObject = null;
 });
