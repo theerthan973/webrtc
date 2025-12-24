@@ -1,49 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Android Audio Stream</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<style>
-body {
-  background:#0d0d0d;
-  color:#00ff00;
-  font-family: monospace;
-  padding:20px;
-}
-.card {
-  border:1px solid #00ff00;
-  padding:15px;
-  margin-bottom:15px;
-}
-audio { width:100%; }
-#debugLog {
-  height:180px;
-  overflow:auto;
-  border:1px solid #00ff00;
-  padding:10px;
-}
-</style>
+  <meta charset="utf-8"/>
+  <title>Android Audio Stream</title>
 </head>
-
 <body>
-
-<h1>Android Audio Stream</h1>
-<div id="status">Connecting…</div>
-
-<div class="card">
-  <h3>Live Audio</h3>
+  <h2 id="status">Connecting…</h2>
+  <button id="startBtn">Start Audio</button>
   <audio id="remoteAudio" autoplay controls></audio>
-</div>
 
-<div class="card">
-  <h3>Debug</h3>
-  <div id="debugLog"></div>
-  <button onclick="location.reload()">Reconnect</button>
-</div>
-
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<script src="client.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
 </body>
 </html>
